@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SQL Assistant</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg-primary: #ffffff; --bg-secondary: #f5f5f4; --bg-tertiary: #efede8;
+    --text-primary: #1a1a18; --text-secondary: #6b6b67; --text-hint: #a0a09b;
+    --border-light: rgba(0,0,0,0.08); --border-mid: rgba(0,0,0,0.14);
+    --accent: #534AB7; --accent-bg: #EEEDFE; --accent-text: #534AB7;
+    --success: #639922; --danger-bg: #FCEBEB; --danger-text: #A32D2D;
+    --danger-border: rgba(162,45,45,0.25); --radius-md: 8px; --radius-lg: 12px;
+    --font: 'DM Sans', system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg-primary: #1e1e1c; --bg-secondary: #262624; --bg-tertiary: #2c2c29;
+      --text-primary: #e8e8e2; --text-secondary: #9a9a94; --text-hint: #5f5f5b;
+      --border-light: rgba(255,255,255,0.07); --border-mid: rgba(255,255,255,0.12);
+      --accent: #7F77DD; --accent-bg: #26215C; --accent-text: #AFA9EC;
+      --success: #97C459; --danger-bg: #2a1515; --danger-text: #F09595;
+      --danger-border: rgba(240,149,149,0.2);
+    }
+  }
+  html, body { height: 100%; }
+  body { font-family: var(--font); background: var(--bg-tertiary); color: var(--text-primary); font-size: 14px; line-height: 1.6; height: 100vh; overflow: hidden; }
+  .root { display: flex; flex-direction: column; height: 100vh; }
+  .topbar { display: flex; align-items: center; gap: 10px; padding: 11px 16px; background: var(--bg-primary); border-bottom: 0.5px solid var(--border-light); flex-shrink: 0; z-index: 10; }
+  .topbar-logo { width: 28px; height: 28px; border-radius: 7px; background: var(--accent); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .topbar-logo svg { width: 15px; height: 15px; fill: none; stroke: #fff; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .topbar-title { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+  .topbar-right { margin-left: auto; display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary); }
+  .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-hint); display: inline-block; transition: background 0.3s; }
+  .status-dot.on { background: var(--success); }
+  .main { display: flex; flex: 1; overflow: hidden; }
+  .sidebar { width: 260px; min-width: 200px; background: var(--bg-primary); border-right: 0.5px solid var(--border-light); display: flex; flex-direction: column; overflow-y: auto; flex-shrink: 0; }
+  .sidebar-section-label { padding: 14px 14px 6px; font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--text-hint); }
+  .field-group { padding: 0 12px 4px; }
+  .field-group label { display: block; font-size: 11.5px; color: var(--text-secondary); margin-bottom: 3px; margin-top: 9px; }
+  .field-group input, .field-group select { width: 100%; font-size: 13px; font-family: var(--font); padding: 7px 10px; border-radius: var(--radius-md); border: 0.5px solid var(--border-light); background: var(--bg-secondary); color: var(--text-primary); outline: none; transition: border-color 0.15s; }
+  .field-group input::placeholder { color: var(--text-hint); }
+  .field-group input:focus, .field-group select:focus { border-color: var(--accent); }
+  .conn-btn { display: block; margin: 10px 12px 4px; padding: 8px 12px; width: calc(100% - 24px); border-radius: var(--radius-md); border: 0.5px solid var(--border-mid); background: transparent; color: var(--text-primary); font-size: 13px; font-weight: 500; font-family: var(--font); cursor: pointer; text-align: center; transition: background 0.15s; }
+  .conn-btn:hover { background: var(--bg-secondary); }
+  .conn-btn.saved { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .conn-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .conn-status { padding: 4px 14px 10px; font-size: 11px; min-height: 22px; line-height: 1.6; }
+  .divider { height: 0.5px; background: var(--border-light); margin: 6px 0; }
+  .history-list { flex: 1; padding-bottom: 12px; }
+  .history-item { padding: 7px 14px; font-size: 12px; color: var(--text-secondary); cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-radius: 6px; margin: 1px 8px; transition: background 0.12s, color 0.12s; }
+  .history-item:hover { background: var(--bg-secondary); color: var(--text-primary); }
+  .history-item::before { content: "›"; margin-right: 6px; color: var(--text-hint); }
+  .chat-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  .messages { flex: 1; overflow-y: auto; padding: 20px 22px; display: flex; flex-direction: column; gap: 16px; scroll-behavior: smooth; }
+  .empty-state { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: var(--text-secondary); padding: 40px 20px; }
+  .empty-icon { width: 40px; height: 40px; border-radius: 10px; background: var(--accent-bg); display: flex; align-items: center; justify-content: center; margin-bottom: 4px; }
+  .empty-icon svg { width: 20px; height: 20px; fill: none; stroke: var(--accent); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .empty-title { font-size: 15px; font-weight: 600; color: var(--text-primary); }
+  .empty-sub { font-size: 13px; text-align: center; max-width: 280px; line-height: 1.5; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-top: 10px; }
+  .chip { padding: 5px 12px; border-radius: 20px; border: 0.5px solid var(--border-mid); font-size: 12px; color: var(--text-secondary); background: var(--bg-primary); cursor: pointer; transition: background 0.12s, color 0.12s; font-family: var(--font); }
+  .chip:hover { background: var(--bg-secondary); color: var(--text-primary); }
+  .chip-special { background: var(--accent-bg); color: var(--accent-text); border-color: var(--accent); font-weight: 500; }
+  .chip-special:hover { background: var(--accent); color: #fff; }
+
+  /* Schema diagram modal */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 100; display: flex; align-items: center; justify-content: center; padding: 20px; }
+  .modal-box { background: var(--bg-primary); border-radius: 12px; border: 0.5px solid var(--border-light); width: 100%; max-width: 900px; max-height: 88vh; display: flex; flex-direction: column; overflow: hidden; }
+  .modal-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 0.5px solid var(--border-light); flex-shrink: 0; }
+  .modal-title { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+  .modal-close { width: 28px; height: 28px; border-radius: 6px; border: none; background: var(--bg-secondary); color: var(--text-secondary); font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+  .modal-close:hover { background: var(--border-light); }
+  .modal-body { flex: 1; overflow-y: auto; padding: 18px; }
+  .modal-loading { display: flex; align-items: center; gap: 8px; color: var(--text-secondary); font-size: 13px; padding: 20px 0; }
+
+  /* Schema diagram table cards */
+  .schema-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+  .schema-card { border: 0.5px solid var(--border-light); border-radius: var(--radius-md); overflow: hidden; }
+  .schema-card-header { background: var(--accent); color: #fff; padding: 7px 11px; font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+  .schema-card-header svg { width: 12px; height: 12px; fill: none; stroke: #fff; stroke-width: 2; flex-shrink: 0; }
+  .schema-card-body { background: var(--bg-primary); }
+  .schema-col-row { display: flex; align-items: center; justify-content: space-between; padding: 5px 11px; border-bottom: 0.5px solid var(--border-light); font-size: 11.5px; gap: 8px; }
+  .schema-col-row:last-child { border-bottom: none; }
+  .schema-col-name { color: var(--text-primary); font-weight: 500; font-family: var(--font-mono); }
+  .schema-col-type { color: var(--text-hint); font-size: 10.5px; font-family: var(--font-mono); }
+  .badge-pk { background: var(--accent-bg); color: var(--accent-text); font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 3px; flex-shrink: 0; }
+  .badge-fk { background: #FFF3E0; color: #E65100; font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 3px; flex-shrink: 0; }
+  .schema-fk-section { padding: 6px 11px; background: var(--bg-secondary); border-top: 0.5px solid var(--border-light); }
+  .schema-fk-title { font-size: 10px; font-weight: 600; color: var(--text-hint); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 3px; }
+  .schema-fk-item { font-size: 11px; color: var(--text-secondary); font-family: var(--font-mono); line-height: 1.6; }
+  .schema-fk-arrow { color: var(--accent); }
+  .schema-summary { display: flex; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; }
+  .schema-stat { background: var(--bg-secondary); border: 0.5px solid var(--border-light); border-radius: var(--radius-md); padding: 10px 16px; font-size: 12px; color: var(--text-secondary); }
+  .schema-stat strong { display: block; font-size: 22px; font-weight: 700; color: var(--text-primary); line-height: 1.2; }
+  .schema-error { color: var(--danger-text); background: var(--danger-bg); border: 0.5px solid var(--danger-border); border-radius: var(--radius-md); padding: 12px 16px; font-size: 13px; }
+  .bubble-row { display: flex; align-items: flex-start; gap: 9px; }
+  .bubble-row.user { flex-direction: row-reverse; }
+  .avatar { width: 27px; height: 27px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; flex-shrink: 0; }
+  .avatar.ai { background: var(--accent-bg); color: var(--accent-text); }
+  .avatar.user { background: var(--bg-secondary); color: var(--text-secondary); border: 0.5px solid var(--border-light); }
+  .bubble { max-width: 80%; display: flex; flex-direction: column; gap: 8px; }
+  .bubble-row.user .bubble { align-items: flex-end; }
+  .msg { padding: 9px 13px; border-radius: var(--radius-lg); font-size: 13.5px; line-height: 1.55; color: var(--text-primary); background: var(--bg-primary); border: 0.5px solid var(--border-light); }
+  .msg.user-msg { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .sql-block { background: var(--bg-secondary); border: 0.5px solid var(--border-light); border-radius: var(--radius-md); overflow: hidden; width: 100%; max-width: 580px; }
+  .sql-block-header { display: flex; align-items: center; justify-content: space-between; padding: 6px 11px; border-bottom: 0.5px solid var(--border-light); }
+  .sql-block-label { font-size: 10.5px; font-weight: 600; color: var(--text-hint); letter-spacing: 0.06em; text-transform: uppercase; }
+  .copy-btn { font-size: 11px; color: var(--text-secondary); background: none; border: none; cursor: pointer; padding: 2px 7px; border-radius: 4px; font-family: var(--font); transition: background 0.12s; }
+  .copy-btn:hover { background: var(--border-light); }
+  .sql-code { font-family: var(--font-mono); font-size: 12.5px; line-height: 1.65; padding: 10px 12px; color: var(--text-primary); white-space: pre-wrap; word-break: break-all; }
+  .kw { color: var(--accent); font-weight: 600; }
+  .result-wrap { width: 100%; max-width: 580px; border: 0.5px solid var(--border-light); border-radius: var(--radius-md); overflow: hidden; }
+  .result-header { display: flex; align-items: center; justify-content: space-between; padding: 6px 11px; background: var(--bg-secondary); border-bottom: 0.5px solid var(--border-light); }
+  .result-label { font-size: 10.5px; font-weight: 600; color: var(--text-hint); letter-spacing: 0.06em; text-transform: uppercase; }
+  .result-count { font-size: 11px; color: var(--text-hint); }
+  .rtable { width: 100%; border-collapse: collapse; font-size: 12.5px; background: var(--bg-primary); }
+  .rtable th { padding: 6px 11px; text-align: left; font-weight: 600; color: var(--text-secondary); background: var(--bg-secondary); border-bottom: 0.5px solid var(--border-light); font-size: 11px; white-space: nowrap; }
+  .rtable td { padding: 6px 11px; border-bottom: 0.5px solid var(--border-light); color: var(--text-primary); }
+  .rtable tr:last-child td { border-bottom: none; }
+  .rtable tr:hover td { background: var(--bg-secondary); }
+  .null-val { color: var(--text-hint); font-style: italic; }
+  .loading-row { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-secondary); padding: 4px 0; }
+  .spinner { width: 13px; height: 13px; border: 1.5px solid var(--border-mid); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; flex-shrink: 0; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .error-box { background: var(--danger-bg); border: 0.5px solid var(--danger-border); border-radius: var(--radius-md); padding: 9px 13px; font-size: 13px; color: var(--danger-text); max-width: 580px; line-height: 1.6; }
+  .input-bar { padding: 11px 16px; background: var(--bg-primary); border-top: 0.5px solid var(--border-light); display: flex; gap: 8px; align-items: flex-end; flex-shrink: 0; }
+  .input-bar textarea { flex: 1; resize: none; min-height: 40px; max-height: 120px; padding: 9px 12px; border-radius: var(--radius-lg); border: 0.5px solid var(--border-light); background: var(--bg-secondary); color: var(--text-primary); font-size: 14px; font-family: var(--font); line-height: 1.5; outline: none; overflow-y: auto; transition: border-color 0.15s; }
+  .input-bar textarea::placeholder { color: var(--text-hint); }
+  .input-bar textarea:focus { border-color: var(--accent); }
+  .input-bar textarea:disabled { opacity: 0.45; }
+  .send-btn { width: 36px; height: 36px; border-radius: 50%; border: none; background: var(--accent); display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; transition: opacity 0.15s, transform 0.1s; }
+  .send-btn:hover { opacity: 0.85; }
+  .send-btn:active { transform: scale(0.95); }
+  .send-btn:disabled { opacity: 0.38; cursor: not-allowed; }
+  .send-btn svg { width: 15px; height: 15px; fill: #fff; }
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border-mid); border-radius: 3px; }
+</style>
+</head>
+<body>
+<div class="root">
+
+  <div class="topbar">
+    <div class="topbar-logo">
+      <svg viewBox="0 0 24 24"><polyline points="4 6 20 6"/><polyline points="4 12 14 12"/><polyline points="4 18 17 18"/><circle cx="19" cy="19" r="3.5"/><line x1="21.5" y1="21.5" x2="23" y2="23"/></svg>
+    </div>
+    <span class="topbar-title">SQL Assistant</span>
+    <div class="topbar-right">
+      <span class="status-dot" id="statusDot"></span>
+      <span id="statusLabel">Not connected</span>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="sidebar">
+      <div class="sidebar-section-label">Database Connection</div>
+      <div class="field-group">
+        <label>Database Type</label>
+        <select id="dbType">
+          <option value="mysql">MySQL</option>
+          <option value="mssql">Microsoft SQL Server</option>
+        </select>
+        <label>Host</label>
+        <input type="text" id="dbHost" placeholder="localhost" />
+        <label>Port</label>
+        <input type="text" id="dbPort" placeholder="3306" />
+        <label>Username</label>
+        <input type="text" id="dbUser" placeholder="root" />
+        <label>Password</label>
+        <input type="password" id="dbPass" placeholder="••••••••" />
+        <label>Database Name</label>
+        <input type="text" id="dbName" placeholder="my_database" />
+      </div>
+      <button class="conn-btn" id="connBtn" onclick="saveConn()">Connect</button>
+      <div class="conn-status" id="connStatus"></div>
+      <div class="divider"></div>
+      <div class="sidebar-section-label">Recent Queries</div>
+      <div class="history-list" id="historyList"></div>
+    </div>
+
+    <div class="chat-area">
+      <div class="messages" id="messages">
+        <div class="empty-state" id="emptyState">
+          <div class="empty-icon">
+            <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="8" y1="9" x2="16" y2="9"/><line x1="8" y1="13" x2="13" y2="13"/><circle cx="19" cy="19" r="4"/><line x1="17.5" y1="19" x2="20.5" y2="19"/><line x1="19" y1="17.5" x2="19" y2="20.5"/></svg>
+          </div>
+          <div class="empty-title">Ask anything about your data</div>
+          <div class="empty-sub">Connect your database, then ask a question in plain English.</div>
+          <div class="chips">
+            <span class="chip" onclick="fillQuery(this)">Show all tables</span>
+            <span class="chip" onclick="fillQuery(this)">Top 10 customers by revenue</span>
+            <span class="chip" onclick="fillQuery(this)">Orders placed this month</span>
+            <span class="chip" onclick="fillQuery(this)">Count rows in each table</span>
+            <span class="chip" onclick="showSchemaDiagram()"> Schema Diagram</span>
+          </div>
+        </div>
+      </div>
+      <div class="input-bar">
+        <textarea id="queryInput" placeholder="Ask a question in plain English…" rows="1"
+          onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+        <button class="send-btn" id="sendBtn" onclick="submitQuery()" title="Run">
+          <svg viewBox="0 0 24 24"><path d="M22 2L11 13"/><path d="M22 2L15 22 11 13 2 9l20-7z"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  let connConfig = {};
+  let queryHistory = [];
+  let isLoading = false;
+
+  // ============================================================
+  // BACKEND URL
+  // This points to your FastAPI server running on your machine.
+  // Change 8000 if you use a different port in uvicorn.
+  // ============================================================
+  const BACKEND_URL = 'http://localhost:8000';
+
+
+  // Auto update port placeholder when DB type changes
+  document.getElementById('dbType').addEventListener('change', function () {
+    document.getElementById('dbPort').placeholder = this.value === 'mysql' ? '3306' : '1433';
+  });
+
+
+  // Restore saved connection when page opens
+  function loadSaved() {
+    try {
+      const s = localStorage.getItem('sqlasst_conn');
+      if (s) {
+        const c = JSON.parse(s);
+        if (c.db_type)  document.getElementById('dbType').value = c.db_type;
+        if (c.host)     document.getElementById('dbHost').value = c.host;
+        if (c.port)     document.getElementById('dbPort').value = c.port;
+        if (c.username) document.getElementById('dbUser').value = c.username;
+        if (c.database) document.getElementById('dbName').value = c.database;
+        connConfig = c;
+        setConnectedUI(true);
+      }
+    } catch (e) {}
+    try {
+      const h = localStorage.getItem('sqlasst_history');
+      if (h) { queryHistory = JSON.parse(h); renderHistory(); }
+    } catch (e) {}
+  }
+
+
+  // ============================================================
+  // CONNECT BUTTON
+  // Collects form values → sends to backend → backend tests real DB
+  // ============================================================
+  async function saveConn() {
+    const dbType = document.getElementById('dbType').value;
+
+    // This object matches ConnectionConfig in your main.py exactly
+    const c = {
+      db_type:  dbType,
+      host:     document.getElementById('dbHost').value.trim(),
+      port:     parseInt(document.getElementById('dbPort').value) || (dbType === 'mysql' ? 3306 : 1433),
+      username: document.getElementById('dbUser').value.trim(),
+      password: document.getElementById('dbPass').value,
+      database: document.getElementById('dbName').value.trim()
+    };
+
+    if (!c.host || !c.username || !c.database) {
+      document.getElementById('connStatus').innerHTML =
+        '<span style="color:var(--danger-text)">Host, username and database are required.</span>';
+      return;
+    }
+
+    document.getElementById('connStatus').innerHTML =
+      '<span style="color:var(--text-secondary)">⏳ Testing connection…</span>';
+    document.getElementById('connBtn').disabled = true;
+
+    try {
+      // POST to backend /test-connection
+      // Backend opens actual DB connection to verify credentials
+      const res = await fetch(BACKEND_URL + '/test-connection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(c)
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        // Wrong password, wrong host, etc. — backend tells us why
+        document.getElementById('connStatus').innerHTML =
+          '<span style="color:var(--danger-text)">✗ ' + (data.detail || 'Connection failed') + '</span>';
+        return;
+      }
+
+      // Success — save and show green dot
+      connConfig = c;
+      try { localStorage.setItem('sqlasst_conn', JSON.stringify(c)); } catch (e) {}
+      setConnectedUI(true);
+
+    } catch (err) {
+      // Backend server is not running
+      document.getElementById('connStatus').innerHTML =
+        '<span style="color:var(--danger-text)">✗ Cannot reach backend.<br>' +
+        'Start it with: <b>uvicorn main:app --reload --port 8000</b></span>';
+    } finally {
+      document.getElementById('connBtn').disabled = false;
+    }
+  }
+
+
+  function setConnectedUI(on) {
+    document.getElementById('statusDot').className = 'status-dot' + (on ? ' on' : '');
+    document.getElementById('statusLabel').textContent = on
+      ? (connConfig.database ? connConfig.database + ' · ' + connConfig.host : 'Connected')
+      : 'Not connected';
+    document.getElementById('connBtn').textContent = on ? 'Reconnect' : 'Connect';
+    document.getElementById('connBtn').className = on ? 'conn-btn saved' : 'conn-btn';
+    document.getElementById('connStatus').innerHTML = on
+      ? '<span style="color:var(--success)">✓ Connected to database</span>' : '';
+  }
+
+
+  function pushHistory(q) {
+    queryHistory = [q, ...queryHistory.filter(x => x !== q)].slice(0, 12);
+    try { localStorage.setItem('sqlasst_history', JSON.stringify(queryHistory)); } catch (e) {}
+    renderHistory();
+  }
+
+  function renderHistory() {
+    document.getElementById('historyList').innerHTML = queryHistory.map((q, i) =>
+      '<div class="history-item" onclick="setQuery(' + i + ')" title="' + esc(q) + '">' + esc(q) + '</div>'
+    ).join('');
+  }
+
+  function setQuery(i) {
+    const ta = document.getElementById('queryInput');
+    ta.value = queryHistory[i]; autoResize(ta); ta.focus();
+  }
+
+  function fillQuery(el) {
+    const ta = document.getElementById('queryInput');
+    ta.value = el.textContent; autoResize(ta); ta.focus();
+  }
+
+  function esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function autoResize(el) {
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+  }
+
+  function handleKey(e) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitQuery(); }
+  }
+
+  function highlightSQL(sql) {
+    const kws = ['SELECT','FROM','WHERE','JOIN','LEFT','RIGHT','INNER','OUTER','FULL','CROSS',
+      'ON','GROUP BY','ORDER BY','HAVING','LIMIT','OFFSET','TOP','AS','AND','OR','NOT',
+      'IN','IS','NULL','LIKE','BETWEEN','EXISTS','COUNT','SUM','AVG','MAX','MIN',
+      'DISTINCT','UNION','ALL','CASE','WHEN','THEN','ELSE','END','BY','ASC','DESC','WITH'];
+    let out = esc(sql);
+    kws.sort((a,b) => b.length - a.length).forEach(k => {
+      out = out.replace(new RegExp('\\b' + k.replace(/ /g,'\\s+') + '\\b', 'gi'),
+        m => '<span class="kw">' + m + '</span>');
+    });
+    return out;
+  }
+
+  function makeSQL(sql) {
+    const b64 = btoa(unescape(encodeURIComponent(sql)));
+    return '<div class="sql-block"><div class="sql-block-header">' +
+      '<span class="sql-block-label">Generated SQL</span>' +
+      '<button class="copy-btn" onclick="copySQL(this,\'' + b64 + '\')">Copy</button>' +
+      '</div><div class="sql-code">' + highlightSQL(sql) + '</div></div>';
+  }
+
+  function copySQL(btn, b64) {
+    try { navigator.clipboard.writeText(decodeURIComponent(escape(atob(b64)))); } catch(e) {}
+    btn.textContent = 'Copied!';
+    setTimeout(() => btn.textContent = 'Copy', 1500);
+  }
+
+  function makeTable(rows) {
+    if (!rows || !rows.length)
+      return '<div class="msg" style="font-size:13px;color:var(--text-secondary)">Query ran — no rows returned.</div>';
+    const cols = Object.keys(rows[0]);
+    const thead = '<tr>' + cols.map(c => '<th>' + esc(c) + '</th>').join('') + '</tr>';
+    const tbody = rows.map(r =>
+      '<tr>' + cols.map(c => '<td>' + (r[c] != null ? esc(String(r[c])) : '<span class="null-val">null</span>') + '</td>').join('') + '</tr>'
+    ).join('');
+    return '<div class="result-wrap"><div class="result-header">' +
+      '<span class="result-label">Results</span>' +
+      '<span class="result-count">' + rows.length + ' row' + (rows.length !== 1 ? 's' : '') + '</span>' +
+      '</div><table class="rtable"><thead>' + thead + '</thead><tbody>' + tbody + '</tbody></table></div>';
+  }
+
+  function makeError(msg) {
+    return '<div class="error-box">⚠ ' + esc(msg) + '</div>';
+  }
+
+  function appendBubble(role, html) {
+    const empty = document.getElementById('emptyState');
+    if (empty) empty.remove();
+    const msgs = document.getElementById('messages');
+    const row = document.createElement('div');
+    row.className = 'bubble-row ' + (role === 'user' ? 'user' : 'ai');
+    const uid = 'b' + Date.now() + Math.random().toString(36).slice(2);
+    row.innerHTML = '<div class="avatar ' + role + '">' + (role === 'user' ? 'You' : 'AI') + '</div>' +
+      '<div class="bubble" id="' + uid + '">' + html + '</div>';
+    msgs.appendChild(row);
+    msgs.scrollTop = msgs.scrollHeight;
+    return document.getElementById(uid);
+  }
+
+
+  // ============================================================
+  // SUBMIT QUERY
+  // Sends question + DB config → backend → Ollama AI → real DB
+  // Gets back: sql, explanation, rows from your actual database
+  // ============================================================
+  async function submitQuery() {
+    if (isLoading) return;
+
+    if (!connConfig.host) {
+      alert('Please connect to your database first.');
+      return;
+    }
+
+    const input = document.getElementById('queryInput');
+    const q = input.value.trim();
+    if (!q) return;
+
+    input.value = ''; autoResize(input);
+    input.disabled = true;
+    document.getElementById('sendBtn').disabled = true;
+    isLoading = true;
+
+    pushHistory(q);
+    appendBubble('user', '<div class="msg user-msg">' + esc(q) + '</div>');
+    const aiBubble = appendBubble('ai',
+      '<div class="loading-row"><div class="spinner"></div>Generating SQL and querying your database…</div>');
+
+    try {
+      // POST to backend /query
+      // Backend does:
+      //   1. Reads your full DB schema (all tables + columns)
+      //   2. Sends schema + question to Ollama AI (running locally)
+      //   3. Gets SQL back from Ollama
+      //   4. Executes that SQL on your real database
+      //   5. Returns: sql, explanation, rows, columns, row_count
+      const res = await fetch(BACKEND_URL + '/query', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          connection: connConfig,   // the DB credentials from the Connect step
+          question:   q,            // what you typed in plain English
+          model:      'llama3'      // Ollama model name — change to 'sqlcoder' if needed
+        })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        aiBubble.innerHTML = makeError(data.detail || 'Query failed.');
+        return;
+      }
+
+      let html = '';
+      if (data.explanation) html += '<div class="msg">' + esc(data.explanation) + '</div>';
+      if (data.sql)         html += makeSQL(data.sql);
+      if (data.rows)        html += makeTable(data.rows);
+
+      aiBubble.innerHTML = html || makeError('Empty response from server.');
+
+    } catch (err) {
+      aiBubble.innerHTML = makeError(
+        'Cannot reach backend at ' + BACKEND_URL + '. ' +
+        'Is uvicorn running? Run: uvicorn main:app --reload --port 8000'
+      );
+    } finally {
+      input.disabled = false;
+      document.getElementById('sendBtn').disabled = false;
+      isLoading = false;
+      input.focus();
+      document.getElementById('messages').scrollTop = 999999;
+    }
+  }
+
+  // ============================================================
+  // SCHEMA DIAGRAM — fetches schema from backend and draws table cards
+  // No AI needed — reads directly from your real database
+  // ============================================================
+  async function showSchemaDiagram() {
+    if (!connConfig.host) {
+      alert('Please connect to your database first.');
+      return;
+    }
+
+    // Create modal
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.id = 'schemaModal';
+    overlay.innerHTML = `
+      <div class="modal-box">
+        <div class="modal-header">
+          <span class="modal-title">&#128202; Schema Diagram — ${connConfig.database} (${connConfig.host})</span>
+          <button class="modal-close" onclick="document.getElementById('schemaModal').remove()">&#x2715;</button>
+        </div>
+        <div class="modal-body" id="schemaModalBody">
+          <div class="modal-loading"><div class="spinner"></div>Reading schema from database…</div>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+
+    // Close on overlay click
+    overlay.addEventListener('click', function(e) {
+      if (e.target === overlay) overlay.remove();
+    });
+
+    try {
+      // Call backend /schema — no AI, just reads tables/columns/FK from DB
+      const res = await fetch(BACKEND_URL + '/schema', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(connConfig)
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || data.error) {
+        document.getElementById('schemaModalBody').innerHTML =
+          '<div class="schema-error">&#9888; ' + esc(data.error || data.detail || 'Could not load schema.') + '</div>';
+        return;
+      }
+
+      const tables = data.tables || {};
+      delete tables.sysdiagrams;
+
+      const tableNames = Object.keys(tables);
+
+      if (!tableNames.length) {
+        document.getElementById('schemaModalBody').innerHTML =
+          '<div class="schema-error">No tables found in database <b>' + esc(connConfig.database) + '</b>.<br>Create some tables first in SSMS.</div>';
+        return;
+      }
+
+      // Count total columns and FK relationships
+      let totalCols = 0;
+      let totalFKs = 0;
+      tableNames.forEach(t => {
+        totalCols += (tables[t].columns || []).length;
+        totalFKs  += (tables[t].foreign_keys || []).length;
+      });
+
+      // Build HTML
+      let html = '';
+
+      // Summary stats bar
+      html += '<div class="schema-summary">';
+      html += '<div class="schema-stat"><strong>' + tableNames.length + '</strong>Tables</div>';
+      html += '<div class="schema-stat"><strong>' + totalCols + '</strong>Columns</div>';
+      html += '<div class="schema-stat"><strong>' + totalFKs + '</strong>Relationships</div>';
+      html += '<div class="schema-stat"><strong>' + esc(connConfig.db_type.toUpperCase()) + '</strong>Type</div>';
+      html += '</div>';
+
+      // Table cards grid
+      html += '<div class="schema-grid">';
+
+      tableNames.forEach(tableName => {
+        const table = tables[tableName];
+        const columns = table.columns || [];
+        const pks = table.primary_key || [];
+        const fks = table.foreign_keys || [];
+
+        html += '<div class="schema-card">';
+
+        // Card header — table name
+        html += '<div class="schema-card-header">';
+        html += '<svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="1"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="9" x2="9" y2="21"/></svg>';
+        html += esc(tableName);
+        html += '</div>';
+
+        // Columns list
+        html += '<div class="schema-card-body">';
+        columns.forEach(col => {
+          const isPK = pks.includes(col.name);
+          const isFKcol = fks.some(f => f.column === col.name);
+          html += '<div class="schema-col-row">';
+          html += '<span class="schema-col-name">' + esc(col.name) + '</span>';
+          html += '<span style="display:flex;align-items:center;gap:4px">';
+          html += '<span class="schema-col-type">' + esc(col.type) + '</span>';
+          if (isPK)    html += '<span class="badge-pk">PK</span>';
+          if (isFKcol) html += '<span class="badge-fk">FK</span>';
+          html += '</span>';
+          html += '</div>';
+        });
+        html += '</div>';
+
+        // FK relationships section
+        if (fks.length) {
+          html += '<div class="schema-fk-section">';
+          html += '<div class="schema-fk-title">Relationships</div>';
+          fks.forEach(fk => {
+            html += '<div class="schema-fk-item">';
+            html += esc(fk.column) + ' <span class="schema-fk-arrow">&#8594;</span> ' + esc(fk.references_table) + '.' + esc(fk.references_column);
+            html += '</div>';
+          });
+          html += '</div>';
+        }
+
+        html += '</div>'; // end schema-card
+      });
+
+      html += '</div>'; // end schema-grid
+
+      document.getElementById('schemaModalBody').innerHTML = html;
+
+    } catch (err) {
+      document.getElementById('schemaModalBody').innerHTML =
+        '<div class="schema-error">&#9888; Cannot reach backend. Make sure uvicorn is running.</div>';
+    }
+  }
+
+  loadSaved();
+</script>
+</body>
+</html>

@@ -1,0 +1,27 @@
+# ============================================================
+#  requirements.txt — Python Dependencies
+#
+#  Install everything with:
+#    pip install -r requirements.txt
+# ============================================================
+
+# FastAPI — web framework for the API server
+fastapi==0.111.0
+
+# Uvicorn — the server that runs FastAPI
+uvicorn[standard]==0.29.0
+
+# Pydantic — data validation (used by FastAPI for request/response models)
+pydantic==2.7.1
+
+# MySQL database driver
+mysql-connector-python==8.3.0
+
+# MSSQL database driver (requires ODBC Driver 17 installed on your machine)
+pyodbc==5.1.0
+
+# HTTP client — used to call Ollama's local API
+requests==2.31.0
+
+# Environment variable support (for .env file)
+python-dotenv==1.0.1
