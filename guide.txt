@@ -4,7 +4,8 @@ sql-backend
 Step 3 — Open terminal in that folder and run:
 bashpip install -r requirements.txt
 Step 4 — Start the server:
-bashuvicorn main:app --reload --port 8000
+bash
+uvicorn main:app --reload --port 8000
 Step 5 — Test it works, open your browser and go to:
 http://localhost:8000/
 

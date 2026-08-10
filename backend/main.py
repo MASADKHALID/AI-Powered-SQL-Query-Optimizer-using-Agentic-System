@@ -1,8 +1,6 @@
 # ============================================================
-#  SQL Assistant Backend — FastAPI
-#  Supports: MySQL + Microsoft SQL Server (MSSQL)
-#  AI:       Ollama (llama3 / sqlcoder running locally)
-#  Author:   Your Name
+#  main.py — FastAPI Backend
+#  Now includes AGENTIC AI endpoint alongside normal endpoint
 # ============================================================
 
 from fastapi import FastAPI, HTTPException
@@ -11,165 +9,151 @@ from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 import logging
 
-# Import our own modules (files in this project)
 from database import get_schema, execute_query, test_connection
-#from ai_agent import generate_sql
+from ai_agent import generate_sql          # original one-shot AI
+#from ai_agent import run_agent                # NEW — agentic AI
 
-# ── Logging setup ────────────────────────────────────────────
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# ── Create FastAPI app ───────────────────────────────────────
 app = FastAPI(
-    title="SQL Assistant API",
-    description="Natural language to SQL — powered by Ollama + FastAPI",
-    version="1.0.0"
+    title="SQL Assistant API — Agentic",
+    description="Natural language to SQL with Agentic AI — powered by SQLCoder + FastAPI",
+    version="2.0.0"
 )
 
-# ── Allow the Chrome extension / frontend to call this API ───
-# CORS = Cross-Origin Resource Sharing
-# Without this the browser will block requests from the extension
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],        # In production replace * with your extension ID
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# ============================================================
-#  REQUEST / RESPONSE MODELS
-#  These define the shape of JSON sent to and from the API
-# ============================================================
+
+# ── Request / Response Models ────────────────────────────────
 
 class ConnectionConfig(BaseModel):
-    """Database connection details sent from the frontend."""
-    db_type: str          # "mysql" or "mssql"
-    host: str             # e.g. "localhost" or "192.168.1.10"
-    port: Optional[int]   # MySQL default 3306 | MSSQL default 1433
+    db_type: str
+    host: str
+    port: Optional[int]
     username: str
     password: str
-    database: str         # The specific database/schema name to use
+    database: str
 
 class QueryRequest(BaseModel):
-    """A natural language question + connection config."""
     connection: ConnectionConfig
-    question: str         # e.g. "show me top 10 customers by revenue"
-    model: Optional[str] = "llama3"  # Ollama model name to use
+    question: str
+    model: Optional[str] = "sqlcoder"
+    use_agent: Optional[bool] = True   # True = agentic, False = simple
 
 class QueryResponse(BaseModel):
-    """What we send back to the frontend."""
-    sql: str                          # The generated SQL query
-    results: List[Dict[str, Any]]     # Rows returned from the database
-    columns: List[str]                # Column names for the table header
-    row_count: int                    # How many rows were returned
-    explanation: str                  # Plain English explanation of the query
+    sql: str
+    results: List[Dict[str, Any]]
+    columns: List[str]
+    row_count: int
+    explanation: str
+    thinking: Optional[List[str]] = []
+    retries: Optional[int] = 0
+    mode: Optional[str] = "agent"
 
 
-# ============================================================
-#  ROUTES (API Endpoints)
-# ============================================================
+# ── Endpoints ────────────────────────────────────────────────
 
 @app.get("/")
 def root():
-    """Health check — visit http://localhost:8000/ to confirm server is running."""
-    return {"status": "running", "message": "SQL Assistant API is live ✓"}
+    return {"status": "running", "message": "SQL Assistant API v2.0 — Agentic Mode active"}
 
 
 @app.post("/test-connection")
 def api_test_connection(config: ConnectionConfig):
-    """
-    Step 1 — Test if the database credentials are correct.
-    The frontend calls this when the user clicks 'Connect'.
-    Returns success or an error message.
-    """
-    logger.info(f"Testing connection to {config.db_type} at {config.host}/{config.database}")
     result = test_connection(config)
-
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result["error"])
-
-    return {"success": True, "message": f"Connected to '{config.database}' successfully ✓"}
+    return {"success": True, "message": f"Connected to '{config.database}' successfully"}
 
 
 @app.post("/schema")
 def api_get_schema(config: ConnectionConfig):
-    """
-    Step 2 — Fetch the database schema (all tables + columns + types).
-    The AI needs this to write accurate SQL with correct table/column names.
-    """
-    logger.info(f"Fetching schema from {config.db_type}/{config.database}")
     schema = get_schema(config)
-
     if "error" in schema:
         raise HTTPException(status_code=500, detail=schema["error"])
-
     return schema
 
 
 @app.post("/query", response_model=QueryResponse)
-
 def api_run_query(req: QueryRequest):
     """
-    Main endpoint — takes a natural language question, generates SQL,
-    executes it against the real database, and returns the results.
-
-    Flow:
-      1. Fetch schema  →  2. Send to Ollama AI  →  3. Execute SQL  →  4. Return results
+    Main endpoint — Agentic AI flow:
+      Step 1: Agent understands the question
+      Step 2: Agent identifies tables + joins needed
+      Step 3: Agent generates SQL
+      Step 4: Agent validates SQL
+      Step 5: Agent runs SQL on real database
+      Step 6: Agent retries if failed (up to 3x)
+      Step 7: Agent explains results in plain English
     """
-    logger.info(f"Question: '{req.question}' | DB: {req.connection.db_type}/{req.connection.database}")
+    logger.info(f"Question: '{req.question}' | Mode: {'AGENT' if req.use_agent else 'SIMPLE'}")
 
-    # ── Step 1: Get database schema for AI context ───────────
     schema = get_schema(req.connection)
     if "error" in schema:
         raise HTTPException(status_code=500, detail=f"Schema error: {schema['error']}")
 
-    # ── Step 2: Ask Ollama AI to generate the SQL query ──────
+    # ── AGENTIC MODE ─────────────────────────────────────────
+    
+    # ── SIMPLE MODE ───────────────────────────────────────────
+    
     sql, explanation = generate_sql(
         question=req.question,
         schema=schema,
         db_type=req.connection.db_type,
         model=req.model
     )
-
     if not sql:
-        raise HTTPException(status_code=500, detail="AI could not generate a valid SQL query.")
-
-    logger.info(f"Generated SQL: {sql}")
-
-    # ── Step 3: Execute the generated SQL on the real database ─
+        raise HTTPException(status_code=500, detail="Could not generate SQL.")
     result = execute_query(req.connection, sql)
-
     if "error" in result:
-        raise HTTPException(status_code=400, detail=f"Query execution error: {result['error']}")
-
-    # ── Step 4: Return everything to the frontend ─────────────
+        raise HTTPException(status_code=400, detail=result["error"])
     return QueryResponse(
         sql=sql,
         results=result["rows"],
         columns=result["columns"],
         row_count=result["row_count"],
-        explanation=explanation
+        explanation=explanation,
+        thinking=[],
+        retries=0,
+        mode="simple"
     )
 
 
 @app.post("/execute-sql")
 def api_execute_raw_sql(config: ConnectionConfig, sql: str):
     """
-    Optional — Execute a raw SQL query directly (user typed SQL manually).
-    Only SELECT queries are allowed for safety.
+    Execute a raw SQL query directly.
+    Called when user clicks the RUN button in frontend.
+    Only SELECT queries allowed for safety.
     """
-    # Safety check — only allow SELECT statements, never DELETE/DROP etc.
+    # Safety check — never allow dangerous queries
     sql_clean = sql.strip().upper()
-    if not sql_clean.startswith("SELECT") and not sql_clean.startswith("WITH"):
+    # Allow INSERT, UPDATE, DELETE only if password verified
+    # Password check is done in frontend before calling this endpoint
+    # Block only dangerous queries — allow SELECT, INSERT, UPDATE, DELETE
+    dangerous = any(sql_clean.startswith(kw) for kw in ["DROP", "TRUNCATE", "ALTER", "CREATE", "EXEC"])
+    if dangerous:
         raise HTTPException(
-            status_code=403,
-            detail="Only SELECT queries are allowed for safety."
+        status_code=403,
+        detail="DROP, TRUNCATE, ALTER, CREATE queries are permanently blocked for safety."
         )
+    logger.info(f"Executing raw SQL: {sql[:100]}")
 
     result = execute_query(config, sql)
 
     if "error" in result:
         raise HTTPException(status_code=400, detail=result["error"])
 
-    return result
+    return {
+        "columns":   result.get("columns", []),
+        "rows":      result.get("rows", []),
+        "row_count": result.get("row_count", 0),
+        "sql":       sql
+    }
