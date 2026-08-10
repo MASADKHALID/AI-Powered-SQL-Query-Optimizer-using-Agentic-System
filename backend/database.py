@@ -313,6 +313,18 @@ def execute_query(config, sql: str) -> Dict[str, Any]:
         logger.info(f"Executing SQL: {sql}")
         cursor.execute(sql)
 
+        # For write queries — commit and return affected rows
+        if sql.strip().upper().startswith(("INSERT", "UPDATE", "DELETE")):
+            conn.commit()
+            affected = cursor.rowcount
+            cursor.close()
+            conn.close()
+            return {
+                "columns":   [],
+                "rows":      [],
+                "row_count": affected
+            }
+
         rows_raw = cursor.fetchall()
 
         # ── Extract column names ──────────────────────────────

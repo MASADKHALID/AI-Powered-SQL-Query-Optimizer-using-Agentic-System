@@ -55,7 +55,7 @@
   .history-item:hover { background: var(--bg-secondary); color: var(--text-primary); }
   .history-item::before { content: "›"; margin-right: 6px; color: var(--text-hint); }
   .chat-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
-  .messages { flex: 1; overflow-y: auto; padding: 20px 22px; display: flex; flex-direction: column; gap: 16px; scroll-behavior: smooth; }
+  .messages { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 20px 22px; display: flex; flex-direction: column; gap: 16px; scroll-behavior: smooth; }
   .empty-state { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: var(--text-secondary); padding: 40px 20px; }
   .empty-icon { width: 40px; height: 40px; border-radius: 10px; background: var(--accent-bg); display: flex; align-items: center; justify-content: center; margin-bottom: 4px; }
   .empty-icon svg { width: 20px; height: 20px; fill: none; stroke: var(--accent); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
@@ -97,12 +97,12 @@
   .schema-stat { background: var(--bg-secondary); border: 0.5px solid var(--border-light); border-radius: var(--radius-md); padding: 10px 16px; font-size: 12px; color: var(--text-secondary); }
   .schema-stat strong { display: block; font-size: 22px; font-weight: 700; color: var(--text-primary); line-height: 1.2; }
   .schema-error { color: var(--danger-text); background: var(--danger-bg); border: 0.5px solid var(--danger-border); border-radius: var(--radius-md); padding: 12px 16px; font-size: 13px; }
-  .bubble-row { display: flex; align-items: flex-start; gap: 9px; }
+  .bubble-row { display: flex; align-items: flex-start; gap: 9px; width: 100%; }
   .bubble-row.user { flex-direction: row-reverse; }
   .avatar { width: 27px; height: 27px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; flex-shrink: 0; }
   .avatar.ai { background: var(--accent-bg); color: var(--accent-text); }
   .avatar.user { background: var(--bg-secondary); color: var(--text-secondary); border: 0.5px solid var(--border-light); }
-  .bubble { max-width: 80%; display: flex; flex-direction: column; gap: 8px; }
+  .bubble { max-width: 100%; width: 100%; display: flex; flex-direction: column; gap: 8px; }
   .bubble-row.user .bubble { align-items: flex-end; }
   .msg { padding: 9px 13px; border-radius: var(--radius-lg); font-size: 13.5px; line-height: 1.55; color: var(--text-primary); background: var(--bg-primary); border: 0.5px solid var(--border-light); }
   .msg.user-msg { background: var(--accent); color: #fff; border-color: var(--accent); }
@@ -111,18 +111,34 @@
   .sql-block-label { font-size: 10.5px; font-weight: 600; color: var(--text-hint); letter-spacing: 0.06em; text-transform: uppercase; }
   .copy-btn { font-size: 11px; color: var(--text-secondary); background: none; border: none; cursor: pointer; padding: 2px 7px; border-radius: 4px; font-family: var(--font); transition: background 0.12s; }
   .copy-btn:hover { background: var(--border-light); }
+  .run-btn { font-size: 11px; color: #fff; background: var(--accent); border: none; cursor: pointer; padding: 3px 10px; border-radius: 4px; font-family: var(--font); font-weight: 500; transition: opacity 0.12s; }
+  .run-btn:hover { opacity: 0.85; }
+  .run-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .run-result { border-top: 0.5px solid var(--border-light); }
   .sql-code { font-family: var(--font-mono); font-size: 12.5px; line-height: 1.65; padding: 10px 12px; color: var(--text-primary); white-space: pre-wrap; word-break: break-all; }
   .kw { color: var(--accent); font-weight: 600; }
-  .result-wrap { width: 100%; max-width: 580px; border: 0.5px solid var(--border-light); border-radius: var(--radius-md); overflow: hidden; }
+  .result-wrap { width: 100%; border: 0.5px solid var(--border-light); border-radius: var(--radius-md); overflow-x: auto; display: block; }
   .result-header { display: flex; align-items: center; justify-content: space-between; padding: 6px 11px; background: var(--bg-secondary); border-bottom: 0.5px solid var(--border-light); }
   .result-label { font-size: 10.5px; font-weight: 600; color: var(--text-hint); letter-spacing: 0.06em; text-transform: uppercase; }
   .result-count { font-size: 11px; color: var(--text-hint); }
-  .rtable { width: 100%; border-collapse: collapse; font-size: 12.5px; background: var(--bg-primary); }
+  .rtable { width: max-content; min-width: 600px; border-collapse: collapse; font-size: 12.5px; background: var(--bg-primary); }
   .rtable th { padding: 6px 11px; text-align: left; font-weight: 600; color: var(--text-secondary); background: var(--bg-secondary); border-bottom: 0.5px solid var(--border-light); font-size: 11px; white-space: nowrap; }
-  .rtable td { padding: 6px 11px; border-bottom: 0.5px solid var(--border-light); color: var(--text-primary); }
+  .rtable td { padding: 6px 11px; border-bottom: 0.5px solid var(--border-light); color: var(--text-primary); white-space: nowrap; }
   .rtable tr:last-child td { border-bottom: none; }
   .rtable tr:hover td { background: var(--bg-secondary); }
   .null-val { color: var(--text-hint); font-style: italic; }
+
+  /* Agent thinking steps */
+  .thinking-box { max-width: 580px; border: 0.5px solid var(--border-light); border-radius: var(--radius-md); overflow: hidden; }
+  .thinking-header { display: flex; align-items: center; justify-content: space-between; padding: 6px 11px; background: var(--accent-bg); border-bottom: 0.5px solid var(--border-light); cursor: pointer; }
+  .thinking-label { font-size: 10.5px; font-weight: 600; color: var(--accent-text); letter-spacing: 0.06em; text-transform: uppercase; }
+  .thinking-toggle { font-size: 11px; color: var(--accent-text); background: none; border: none; cursor: pointer; font-family: var(--font); }
+  .thinking-steps { padding: 8px 11px; background: var(--bg-secondary); display: none; }
+  .thinking-steps.open { display: block; }
+  .thinking-step { font-size: 11.5px; color: var(--text-secondary); padding: 3px 0; line-height: 1.5; border-bottom: 0.5px solid var(--border-light); }
+  .thinking-step:last-child { border-bottom: none; }
+  .agent-badge { display: inline-flex; align-items: center; gap: 4px; background: var(--accent-bg); color: var(--accent-text); font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 10px; margin-bottom: 6px; }
+  .retry-badge { display: inline-flex; align-items: center; gap: 4px; background: #FFF3E0; color: #E65100; font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 10px; margin-left: 6px; }
   .loading-row { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-secondary); padding: 4px 0; }
   .spinner { width: 13px; height: 13px; border: 1.5px solid var(--border-mid); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; flex-shrink: 0; }
   @keyframes spin { to { transform: rotate(360deg); } }
@@ -137,6 +153,27 @@
   .send-btn:active { transform: scale(0.95); }
   .send-btn:disabled { opacity: 0.38; cursor: not-allowed; }
   .send-btn svg { width: 15px; height: 15px; fill: #fff; }
+  /* Floating schema button */
+  .float-schema-btn {
+    position: fixed;
+    right: 20px;
+    bottom: 80px;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    font-size: 18px;
+    cursor: pointer;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.2);
+    z-index: 99;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.15s, opacity 0.15s;
+  }
+  .float-schema-btn:hover { transform: scale(1.1); opacity: 0.9; }
   ::-webkit-scrollbar { width: 5px; height: 5px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border-mid); border-radius: 3px; }
@@ -144,7 +181,10 @@
 </head>
 <body>
 <div class="root">
-
+  <!-- Floating Schema Button — always visible -->
+<button class="float-schema-btn" onclick="showSchemaDiagram()" title="View Schema Diagram">
+  📊
+</button>
   <div class="topbar">
     <div class="topbar-logo">
       <svg viewBox="0 0 24 24"><polyline points="4 6 20 6"/><polyline points="4 12 14 12"/><polyline points="4 18 17 18"/><circle cx="19" cy="19" r="3.5"/><line x1="21.5" y1="21.5" x2="23" y2="23"/></svg>
@@ -196,7 +236,7 @@
             <span class="chip" onclick="fillQuery(this)">Top 10 customers by revenue</span>
             <span class="chip" onclick="fillQuery(this)">Orders placed this month</span>
             <span class="chip" onclick="fillQuery(this)">Count rows in each table</span>
-            <span class="chip" onclick="showSchemaDiagram()"> Schema Diagram</span>
+            <span class="chip chip-special" onclick="showSchemaDiagram()">&#128202; Schema Diagram</span>
           </div>
         </div>
       </div>
@@ -375,11 +415,101 @@
 
   function makeSQL(sql) {
     const b64 = btoa(unescape(encodeURIComponent(sql)));
-    return '<div class="sql-block"><div class="sql-block-header">' +
-      '<span class="sql-block-label">Generated SQL</span>' +
-      '<button class="copy-btn" onclick="copySQL(this,\'' + b64 + '\')">Copy</button>' +
-      '</div><div class="sql-code">' + highlightSQL(sql) + '</div></div>';
+    const sqlId = 'sql_' + Date.now();
+    window._lastSQL = sql; // store for run button
+    return '<div class="sql-block">' +
+      '<div class="sql-block-header">' +
+        '<span class="sql-block-label">Generated SQL</span>' +
+        '<div style="display:flex;gap:6px">' +
+          '<button class="copy-btn" onclick="copySQL(this,\'' + b64 + '\')">Copy</button>' +
+          '<button class="run-btn" onclick="runSQL(\'' + b64 + '\', this)">▶ Run Query</button>' +
+        '</div>' +
+      '</div>' +
+      '<div class="sql-code" id="' + sqlId + '">' + highlightSQL(sql) + '</div>' +
+      '<div class="run-result" id="res_' + sqlId + '"></div>' +
+    '</div>';
   }
+
+  async function runSQL(b64, btn) {
+    if (!connConfig.host) {
+      alert('Please connect to your database first.');
+      return;
+    }
+
+    const sql      = decodeURIComponent(escape(atob(b64)));
+    const sqlUpper = sql.trim().toUpperCase();
+
+    // Check if query is write operation
+    const isWrite = sqlUpper.startsWith('INSERT') ||
+                    sqlUpper.startsWith('UPDATE') ||
+                    sqlUpper.startsWith('DELETE');
+
+    // If write operation — ask for password first
+    if (isWrite) {
+      const password = prompt(
+        '⚠ This query will MODIFY your database.\n\n' +
+        'Enter your database password to confirm:'
+      );
+
+      // User cancelled
+      if (password === null) return;
+
+      // Verify password matches saved connection password
+      if (password !== connConfig.password) {
+        alert('❌ Wrong password. Query blocked.');
+        return;
+      }
+
+      // Double confirm for DELETE
+      if (sqlUpper.startsWith('DELETE')) {
+        const confirm2 = confirm(
+          '⚠ WARNING: This will permanently DELETE data.\n\n' +
+          'Are you absolutely sure?'
+        );
+        if (!confirm2) return;
+      }
+    }
+
+    const sqlBlock  = btn.closest('.sql-block');
+    const resultDiv = sqlBlock.querySelector('.run-result');
+
+    btn.textContent = '⏳ Running...';
+    btn.disabled    = true;
+    resultDiv.innerHTML = '<div class="loading-row"><div class="spinner"></div>Executing query on database…</div>';
+
+    try {
+      const res = await fetch(BACKEND_URL + '/execute-sql?sql=' + encodeURIComponent(sql), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(connConfig)
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        resultDiv.innerHTML = makeError(data.detail || 'Query execution failed.');
+        return;
+      }
+
+      // For write operations show success message
+      if (isWrite) {
+        const affected = data.row_count || 0;
+        resultDiv.innerHTML =
+          '<div class="msg" style="color:var(--success);border-color:var(--success)">' +
+          '✓ Query executed successfully. Rows affected: ' + affected +
+          '</div>';
+      } else {
+        resultDiv.innerHTML = makeTable(data.rows || []);
+      }
+
+    } catch (err) {
+      resultDiv.innerHTML = makeError('Cannot reach backend. Is uvicorn running?');
+    } finally {
+      btn.textContent = '▶ Run Query';
+      btn.disabled    = false;
+    }
+  }
+    
 
   function copySQL(btn, b64) {
     try { navigator.clipboard.writeText(decodeURIComponent(escape(atob(b64)))); } catch(e) {}
@@ -399,6 +529,29 @@
       '<span class="result-label">Results</span>' +
       '<span class="result-count">' + rows.length + ' row' + (rows.length !== 1 ? 's' : '') + '</span>' +
       '</div><table class="rtable"><thead>' + thead + '</thead><tbody>' + tbody + '</tbody></table></div>';
+  }
+
+  function makeThinking(steps, retries) {
+    if (!steps || !steps.length) return '';
+    const retryBadge = retries > 0
+      ? '<span class="retry-badge">&#8635; ' + retries + ' retr' + (retries === 1 ? 'y' : 'ies') + '</span>'
+      : '';
+    const uid = 'th' + Date.now();
+    const stepsHtml = steps.map(s => '<div class="thinking-step">' + esc(s) + '</div>').join('');
+    return '<div class="thinking-box">' +
+      '<div class="thinking-header" onclick="toggleThinking(\'' + uid + '\')">' +
+        '<span class="thinking-label">&#129504; Agent Thinking (' + steps.length + ' steps)' + retryBadge + '</span>' +
+        '<button class="thinking-toggle" id="btn_' + uid + '">Show ▾</button>' +
+      '</div>' +
+      '<div class="thinking-steps" id="' + uid + '">' + stepsHtml + '</div>' +
+    '</div>';
+  }
+
+  function toggleThinking(uid) {
+    const el = document.getElementById(uid);
+    const btn = document.getElementById('btn_' + uid);
+    el.classList.toggle('open');
+    btn.textContent = el.classList.contains('open') ? 'Hide ▴' : 'Show ▾';
   }
 
   function makeError(msg) {
@@ -461,7 +614,8 @@
         body: JSON.stringify({
           connection: connConfig,   // the DB credentials from the Connect step
           question:   q,            // what you typed in plain English
-          model:      'llama3'      // Ollama model name — change to 'sqlcoder' if needed
+          model:      'sqlcoder',   // SQLCoder model for best SQL accuracy
+          use_agent:  false          // enables agentic AI — plans, validates, retries
         })
       });
 
@@ -473,6 +627,12 @@
       }
 
       let html = '';
+      // Show agent badge
+      const mode = data.mode || 'simple';
+      html += '<span class="agent-badge">&#129504; ' + (mode === 'agent' ? 'Agentic AI' : 'Simple AI') + '</span>';
+      // Show agent thinking steps (collapsible)
+      if (data.thinking && data.thinking.length)
+        html += makeThinking(data.thinking, data.retries || 0);
       if (data.explanation) html += '<div class="msg">' + esc(data.explanation) + '</div>';
       if (data.sql)         html += makeSQL(data.sql);
       if (data.rows)        html += makeTable(data.rows);
@@ -541,8 +701,7 @@
       }
 
       const tables = data.tables || {};
-      delete tables.sysdiagrams;
-
+      delete tables.sysdiagrams; // remove this common SQL Server diagram table which clutters the view
       const tableNames = Object.keys(tables);
 
       if (!tableNames.length) {
