@@ -11,14 +11,27 @@
 #    3. execute_query()    → runs a SQL string and returns rows
 # ============================================================
 
+from csv import excel
+
 import mysql.connector          # pip install mysql-connector-python
 import pyodbc                   # pip install pyodbc
+import snowflake.connector      # pip install snowflake-connector-python
 from typing import Dict, Any
 import logging
+#excel
+import duckdb
+import pandas as pd
+import os
+import re
 
 logger = logging.getLogger(__name__)
-
-
+#excel
+def _sanitize_identifier(name: str) -> str:
+    """Turn a sheet name / filename into a safe SQL table name."""
+    clean = re.sub(r"\W+", "_", name.strip())
+    if clean and clean[0].isdigit():
+        clean = "t_" + clean
+    return clean or "sheet"
 # ============================================================
 #  HELPER: Build a database connection
 #  Called internally — not exposed as an API endpoint
@@ -72,8 +85,47 @@ def get_connection(config):
         conn = pyodbc.connect(connection_string)
         return conn
 
+    elif config.db_type.lower() == "snowflake":
+        conn = snowflake.connector.connect(
+            account=config.host,        # e.g. abc12345.us-east-1
+            user=config.username,
+            password=config.password,
+            database=config.database,
+            warehouse="SNOWFLAKE_LEARNING_WH",     # change to your warehouse name
+            login_timeout=30
+        )
+        return conn
+    #excel
+    elif config.db_type.lower() in ("excel", "csv"):
+        # ── Excel / CSV via DuckDB ────────────────────────────
+        # No server, no upload — reads the file straight off disk,
+        # fresh every time a connection is opened, so it always
+        # reflects the latest saved data.
+        file_path = config.file_path
+        if not file_path:
+            raise ValueError("file_path is required for excel/csv connections")
+        if not os.path.exists(file_path):
+            raise ValueError(f"File not found: {file_path}")
+
+        conn = duckdb.connect(database=":memory:")
+    
+
+        if config.db_type.lower() == "csv":
+            table_name = _sanitize_identifier(os.path.splitext(os.path.basename(file_path))[0])
+            df = pd.read_csv(file_path)
+            conn.register(table_name, df)
+            
+        else:
+            sheets = pd.read_excel(file_path, sheet_name=None, engine="openpyxl")
+            for sheet_name, df in sheets.items():
+                table_name = _sanitize_identifier(sheet_name)
+                conn.register(table_name, df)
+                
+
+        return conn
+
     else:
-        raise ValueError(f"Unsupported database type: '{config.db_type}'. Use 'mysql' or 'mssql'.")
+        raise ValueError(f"Unsupported database type: '{config.db_type}'. Use 'mysql', 'mssql' or 'snowflake'.")
 
 
 # ============================================================
@@ -131,6 +183,11 @@ def get_schema(config) -> Dict[str, Any]:
 
         if config.db_type.lower() == "mysql":
             return _get_mysql_schema(conn, config.database)
+        elif config.db_type.lower() == "snowflake":
+            return _get_snowflake_schema(conn, config.database)
+        #excel
+        elif config.db_type.lower() in ("excel", "csv"):
+            return _get_duckdb_schema(conn)
         else:
             return _get_mssql_schema(conn, config.database)
 
@@ -205,6 +262,26 @@ def _get_mysql_schema(conn, database: str) -> Dict[str, Any]:
     conn.close()
     return schema
 
+#excel
+def _get_duckdb_schema(conn) -> Dict[str, Any]:
+    """Extract schema from the DuckDB views registered over Excel/CSV data."""
+    schema = {"tables": {}}
+
+    table_names = [row[0] for row in conn.execute("SHOW TABLES").fetchall()]
+
+    for table_name in table_names:
+        schema["tables"][table_name] = {"columns": [], "primary_key": [], "foreign_keys": []}
+        rows = conn.execute(f'DESCRIBE "{table_name}"').fetchall()
+        for row in rows:
+            col_name, col_type = row[0], row[1]
+            schema["tables"][table_name]["columns"].append({
+                "name": col_name,
+                "type": str(col_type).upper(),
+                "nullable": True
+            })
+
+    conn.close()
+    return schema
 
 def _get_mssql_schema(conn, database: str) -> Dict[str, Any]:
     """Extract full schema from Microsoft SQL Server using sys tables."""
@@ -284,6 +361,40 @@ def _get_mssql_schema(conn, database: str) -> Dict[str, Any]:
     conn.close()
     return schema
 
+def _get_snowflake_schema(conn, database: str) -> Dict[str, Any]:
+    """Extract full schema from Snowflake."""
+    cursor = conn.cursor()
+    schema = {"tables": {}}
+
+    # Get all tables
+    cursor.execute(f"""
+        SELECT TABLE_NAME
+        FROM {database}.INFORMATION_SCHEMA.TABLES
+        WHERE TABLE_TYPE = 'BASE TABLE'
+        ORDER BY TABLE_NAME
+    """)
+    tables = [row[0] for row in cursor.fetchall()]
+
+    for table in tables:
+        schema["tables"][table] = {"columns": [], "primary_key": [], "foreign_keys": []}
+
+        # Get columns
+        cursor.execute(f"""
+            SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE
+            FROM {database}.INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_NAME = '{table}'
+            ORDER BY ORDINAL_POSITION
+        """)
+        for col in cursor.fetchall():
+            schema["tables"][table]["columns"].append({
+                "name":     col[0],
+                "type":     col[1].upper(),
+                "nullable": col[2] == "YES"
+            })
+
+    cursor.close()
+    conn.close()
+    return schema
 
 # ============================================================
 #  3. EXECUTE QUERY
@@ -302,13 +413,23 @@ def execute_query(config, sql: str) -> Dict[str, Any]:
     }
     """
     try:
+        #excel
+        if config.db_type.lower() in ("excel", "csv") and sql.strip().upper().startswith(("INSERT", "UPDATE", "DELETE")):
+            return {"error": "Write queries aren't supported for Excel/CSV sources — these are read-only in this version."}
+
         conn = get_connection(config)
+
 
         if config.db_type.lower() == "mysql":
             # dictionary=True makes each row a dict {column: value}
             cursor = conn.cursor(dictionary=True)
+        elif config.db_type.lower() in ("excel", "csv"):
+            cursor = conn          # DuckDB: execute directly on the same connection
+                                    # that has the registered table — .cursor()
+                                    # creates a separate connection that can't see it
         else:
             cursor = conn.cursor()
+
 
         logger.info(f"Executing SQL: {sql}")
         cursor.execute(sql)
@@ -331,7 +452,8 @@ def execute_query(config, sql: str) -> Dict[str, Any]:
         columns = [desc[0] for desc in cursor.description] if cursor.description else []
 
         # ── For MSSQL rows are tuples — convert to dicts ──────
-        if config.db_type.lower() == "mssql":
+        # ── Convert rows to dicts ─────────────────────────────
+        if config.db_type.lower() in ("mssql", "snowflake", "excel", "csv"):
             rows = [dict(zip(columns, row)) for row in rows_raw]
         else:
             rows = rows_raw  # MySQL already returns dicts

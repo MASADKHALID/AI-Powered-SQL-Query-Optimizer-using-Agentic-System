@@ -153,6 +153,23 @@
   .send-btn:active { transform: scale(0.95); }
   .send-btn:disabled { opacity: 0.38; cursor: not-allowed; }
   .send-btn svg { width: 15px; height: 15px; fill: #fff; }
+  /*excel*/
+  .sidebar-toggle-btn {
+    width: 28px; height: 28px; border-radius: 6px; border: none;
+    background: transparent; color: var(--text-secondary);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; flex-shrink: 0; transition: background 0.15s, transform 0.2s;
+}
+.sidebar-toggle-btn:hover { background: var(--bg-secondary); }
+.sidebar-toggle-btn svg {
+    width: 15px; height: 15px; fill: none; stroke: currentColor;
+    stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+}
+.sidebar-toggle-btn.collapsed svg { transform: rotate(180deg); }
+
+.sidebar { transition: margin-left 0.2s ease, opacity 0.15s ease; }
+.sidebar.hidden { margin-left: -260px; opacity: 0; pointer-events: none; }
+/*excel*/
   /* Floating schema button */
   .float-schema-btn {
     position: fixed;
@@ -186,6 +203,10 @@
   📊
 </button>
   <div class="topbar">
+    <!--excel-->
+    <button class="sidebar-toggle-btn" id="sidebarToggleBtn" onclick="toggleSidebar()" title="Toggle sidebar">
+      <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+    </button>
     <div class="topbar-logo">
       <svg viewBox="0 0 24 24"><polyline points="4 6 20 6"/><polyline points="4 12 14 12"/><polyline points="4 18 17 18"/><circle cx="19" cy="19" r="3.5"/><line x1="21.5" y1="21.5" x2="23" y2="23"/></svg>
     </div>
@@ -199,11 +220,15 @@
   <div class="main">
     <div class="sidebar">
       <div class="sidebar-section-label">Database Connection</div>
-      <div class="field-group">
+      <div class="field-group" id="serverFields">
         <label>Database Type</label>
         <select id="dbType">
           <option value="mysql">MySQL</option>
           <option value="mssql">Microsoft SQL Server</option>
+          <option value="snowflake">Snowflake</option>
+          <!--excel-->
+          <option value="excel">Excel (.xlsx)</option>
+          <option value="csv">CSV</option>
         </select>
         <label>Host</label>
         <input type="text" id="dbHost" placeholder="localhost" />
@@ -216,7 +241,19 @@
         <label>Database Name</label>
         <input type="text" id="dbName" placeholder="my_database" />
       </div>
+      <!--excel-->
+      <div class="field-group" id="fileFields" style="display:none">
+        <label>File Path (on this PC)</label>
+        <input type="text" id="dbFilePath" placeholder="C:\Shop\Data\shop.xlsx" />
+        <div style="font-size:11px;color:var(--text-hint);margin-top:4px">
+          The file stays on your computer — nothing is uploaded. The backend re-reads it every time you ask a question.
+        </div>
+      </div>
       <button class="conn-btn" id="connBtn" onclick="saveConn()">Connect</button>
+      <!-- New Connection button -->
+      <button class="conn-btn" id="newConnBtn" onclick="resetConnection()" style="border-style:dashed">
+      + New Connection
+      </button>
       <div class="conn-status" id="connStatus"></div>
       <div class="divider"></div>
       <div class="sidebar-section-label">Recent Queries</div>
@@ -263,13 +300,47 @@
   // ============================================================
   const BACKEND_URL = 'http://localhost:8000';
 
-
+  //excel
   // Auto update port placeholder when DB type changes
   document.getElementById('dbType').addEventListener('change', function () {
+    const isFile = this.value === 'excel' || this.value === 'csv';
+    document.getElementById('serverFields').style.display = isFile ? 'none' : 'block';
+    document.getElementById('fileFields').style.display   = isFile ? 'block' : 'none';
     document.getElementById('dbPort').placeholder = this.value === 'mysql' ? '3306' : '1433';
   });
+  //document.getElementById('dbType').addEventListener('change', function () {
+    //document.getElementById('dbPort').placeholder = this.value === 'mysql' ? '3306' : '1433';
+  //});
 
+  function isConnected() {
+    return !!(connConfig.host || connConfig.file_path);
+  }
+  function resetConnection() {
+    connConfig = {};
+    try { localStorage.removeItem('sqlasst_conn'); } catch (e) {}
 
+    document.getElementById('dbType').value = 'mysql';
+    document.getElementById('dbHost').value = '';
+    document.getElementById('dbPort').value = '';
+    document.getElementById('dbUser').value = '';
+    document.getElementById('dbPass').value = '';
+    document.getElementById('dbName').value = '';
+    document.getElementById('dbFilePath').value = '';
+
+    document.getElementById('dbType').dispatchEvent(new Event('change'));
+    setConnectedUI(false);
+  }
+
+  //excel
+  function toggleSidebar() {
+    const sidebar = document.querySelector('.sidebar');
+    const btn = document.getElementById('sidebarToggleBtn');
+    sidebar.classList.toggle('hidden');
+    btn.classList.toggle('collapsed');
+    try {
+      localStorage.setItem('sqlasst_sidebar_hidden', sidebar.classList.contains('hidden'));
+    } catch (e) {}
+  }
   // Restore saved connection when page opens
   function loadSaved() {
     try {
@@ -277,6 +348,9 @@
       if (s) {
         const c = JSON.parse(s);
         if (c.db_type)  document.getElementById('dbType').value = c.db_type;
+        //excel
+        if (c.file_path) document.getElementById('dbFilePath').value = c.file_path;
+        document.getElementById('dbType').dispatchEvent(new Event('change')); // show correct fields
         if (c.host)     document.getElementById('dbHost').value = c.host;
         if (c.port)     document.getElementById('dbPort').value = c.port;
         if (c.username) document.getElementById('dbUser').value = c.username;
@@ -289,13 +363,22 @@
       const h = localStorage.getItem('sqlasst_history');
       if (h) { queryHistory = JSON.parse(h); renderHistory(); }
     } catch (e) {}
-  }
+    //excel
+    try {
+      const hidden = localStorage.getItem('sqlasst_sidebar_hidden') === 'true';
+      if (hidden) {
+        document.querySelector('.sidebar').classList.add('hidden');
+        document.getElementById('sidebarToggleBtn').classList.add('collapsed');
+      }
+    } catch (e) {}
+}
 
 
   // ============================================================
   // CONNECT BUTTON
   // Collects form values → sends to backend → backend tests real DB
   // ============================================================
+  /*
   async function saveConn() {
     const dbType = document.getElementById('dbType').value;
 
@@ -351,7 +434,64 @@
       document.getElementById('connBtn').disabled = false;
     }
   }
+  */
+ //excel
+  async function saveConn() {
+    const dbType = document.getElementById('dbType').value;
+    const isFile = dbType === 'excel' || dbType === 'csv';
 
+    let c;
+    if (isFile) {
+      const filePath = document.getElementById('dbFilePath').value.trim();
+      if (!filePath) {
+        document.getElementById('connStatus').innerHTML =
+          '<span style="color:var(--danger-text)">File path is required.</span>';
+        return;
+      }
+      c = { db_type: dbType, file_path: filePath, database: filePath };
+    } else {
+      c = {
+        db_type:  dbType,
+        host:     document.getElementById('dbHost').value.trim(),
+        port:     parseInt(document.getElementById('dbPort').value) || (dbType === 'mysql' ? 3306 : 1433),
+        username: document.getElementById('dbUser').value.trim(),
+        password: document.getElementById('dbPass').value,
+        database: document.getElementById('dbName').value.trim()
+      };
+      if (!c.host || !c.username || !c.database) {
+        document.getElementById('connStatus').innerHTML =
+          '<span style="color:var(--danger-text)">Host, username and database are required.</span>';
+        return;
+      }
+    }
+
+    document.getElementById('connStatus').innerHTML =
+      '<span style="color:var(--text-secondary)">⏳ Testing connection…</span>';
+    document.getElementById('connBtn').disabled = true;
+
+    try {
+      const res = await fetch(BACKEND_URL + '/test-connection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(c)
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        document.getElementById('connStatus').innerHTML =
+          '<span style="color:var(--danger-text)">✗ ' + (data.detail || 'Connection failed') + '</span>';
+        return;
+      }
+      connConfig = c;
+      try { localStorage.setItem('sqlasst_conn', JSON.stringify(c)); } catch (e) {}
+      setConnectedUI(true);
+    } catch (err) {
+      document.getElementById('connStatus').innerHTML =
+        '<span style="color:var(--danger-text)">✗ Cannot reach backend.<br>' +
+        'Start it with: <b>uvicorn main:app --reload --port 8000</b></span>';
+    } finally {
+      document.getElementById('connBtn').disabled = false;
+    }
+  }
 
   function setConnectedUI(on) {
     document.getElementById('statusDot').className = 'status-dot' + (on ? ' on' : '');
@@ -431,7 +571,8 @@
   }
 
   async function runSQL(b64, btn) {
-    if (!connConfig.host) {
+    if (!isConnected()) {
+    //if (!connConfig.host) {
       alert('Please connect to your database first.');
       return;
     }
@@ -580,8 +721,8 @@
   // ============================================================
   async function submitQuery() {
     if (isLoading) return;
-
-    if (!connConfig.host) {
+    if (!isConnected()) {
+    //if (!connConfig.host) {
       alert('Please connect to your database first.');
       return;
     }
@@ -658,7 +799,8 @@
   // No AI needed — reads directly from your real database
   // ============================================================
   async function showSchemaDiagram() {
-    if (!connConfig.host) {
+    if (!isConnected()) {
+    //if (!connConfig.host) {
       alert('Please connect to your database first.');
       return;
     }
