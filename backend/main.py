@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="SQL Assistant API — Agentic",
-    description="Natural language to SQL with Agentic AI — powered by SQLCoder + FastAPI",
+    description="Natural language to SQL with Agentic AI",
     version="2.0.0"
 )
 
@@ -32,7 +32,7 @@ app.add_middleware(
 
 
 # ── Request / Response Models ────────────────────────────────
-
+'''
 class ConnectionConfig(BaseModel):
     db_type: str
     host: str
@@ -40,7 +40,18 @@ class ConnectionConfig(BaseModel):
     username: str
     password: str
     database: str
-
+    #excel
+    file_path: str
+'''
+class ConnectionConfig(BaseModel):
+    db_type: str
+    host: Optional[str] = None
+    port: Optional[int] = None
+    username: Optional[str] = None
+    password: Optional[str] = None
+    database: Optional[str] = None
+    file_path: Optional[str] = None
+    
 class QueryRequest(BaseModel):
     connection: ConnectionConfig
     question: str
@@ -102,7 +113,7 @@ def api_run_query(req: QueryRequest):
     # ── AGENTIC MODE ─────────────────────────────────────────
     
     # ── SIMPLE MODE ───────────────────────────────────────────
-    
+    '''
     sql, explanation = generate_sql(
         question=req.question,
         schema=schema,
@@ -111,6 +122,45 @@ def api_run_query(req: QueryRequest):
     )
     if not sql:
         raise HTTPException(status_code=500, detail="Could not generate SQL.")
+    result = execute_query(req.connection, sql)
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return QueryResponse(
+        sql=sql,
+        results=result["rows"],
+        columns=result["columns"],
+        row_count=result["row_count"],
+        explanation=explanation,
+        thinking=[],
+        retries=0,
+        mode="simple"
+    )
+    '''
+    sql, explanation = generate_sql(
+        question=req.question,
+        schema=schema,
+        db_type=req.connection.db_type,
+        model=req.model
+    )
+    if not sql:
+        raise HTTPException(status_code=500, detail="Could not generate SQL.")
+
+    # For INSERT/UPDATE/DELETE — return SQL only, don't execute
+    # User clicks Run button in frontend with password verification
+    sql_upper = sql.strip().upper()
+    if sql_upper.startswith(("INSERT", "UPDATE", "DELETE")):
+        return QueryResponse(
+            sql=sql,
+            results=[],
+            columns=[],
+            row_count=0,
+            explanation=explanation,
+            thinking=[],
+            retries=0,
+            mode="simple"
+        )
+
+    # For SELECT — execute and return results
     result = execute_query(req.connection, sql)
     if "error" in result:
         raise HTTPException(status_code=400, detail=result["error"])

@@ -1,14 +1,3 @@
-# ============================================================
-#  ai_agent.py — Google Gemini API Version (FREE)
-#
-#  Gemini is 100% free — no credit card needed
-#  Sign up: https://aistudio.google.com
-#  Then: Get API Key → Create Key → paste below
-#
-#  Only ONE thing to change:
-#    GEMINI_API_KEY = "paste-your-gemini-key-here"
-# ============================================================
-
 import time
 
 import requests
@@ -70,6 +59,9 @@ def generate_sql(question: str, schema: dict, db_type: str, model: str = None) -
         syntax = "MySQL syntax. Use backticks for identifiers. Use LIMIT for row limits."
     elif db_type.lower() == "mssql":
         syntax = "T-SQL syntax. Use square brackets for identifiers. Use TOP instead of LIMIT."
+    #excel
+    elif db_type.lower() in ("excel", "csv"):
+        syntax = "DuckDB SQL syntax (Postgres-like). Use LIMIT for row limits. Table names come from the Excel sheet names (or the CSV filename) — use them exactly as given in the schema."
     else:
         syntax = "Standard SQL syntax."
 
@@ -84,8 +76,10 @@ DATABASE SCHEMA:
 RULES:
 1. Use EXACT table and column names from schema
 2. Use proper JOINs when multiple tables needed
-3. SELECT queries by default. Only generate INSERT/UPDATE/DELETE if user explicitly asks to add, update or delete data.
+3. Generate INSERT when user says "insert", "add", "create record". Generate UPDATE when user says "update", "change", "modify". Generate DELETE when user says "delete", "remove". Otherwise use SELECT.
 4. Add TOP 1000 (MSSQL) or LIMIT 1000 (MySQL) by default
+5. IMPORTANT: Always generate ONE single SQL statement only — never multiple statements separated by semicolons
+6. If user asks for counts of multiple tables — use UNION ALL in one single query
 
 USER QUESTION: {question}
 
@@ -307,4 +301,5 @@ def clean_sql(raw: str) -> str:
         sql_lines.append(line)
 
     sql = "\n".join(sql_lines).strip().rstrip(";").strip()
-    return sql if sql.upper().startswith(("SELECT", "WITH", "--")) else ""
+    #return sql if sql.upper().startswith(("SELECT", "WITH", "--")) else ""
+    return sql if sql.upper().startswith(("SELECT", "WITH", "--", "INSERT", "UPDATE", "DELETE")) else ""

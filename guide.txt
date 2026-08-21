@@ -1,130 +1,363 @@
+================================================================
+  SQL ASSISTANT — SETUP GUIDE
+  Covers: MSSQL + Snowflake Connection
+================================================================
+
+
+────────────────────────────────────────────────────────────────
+ PART 1 — BACKEND SETUP
+────────────────────────────────────────────────────────────────
 
 Step 1 — Create a folder on your Desktop called:
-sql-backend
+  sql-backend
+
+Step 2 — Put these files inside it:
+  main.py
+  database.py
+  ai_agent.py
+  requirements.txt
+
 Step 3 — Open terminal in that folder and run:
-bashpip install -r requirements.txt
+  pip install -r requirements.txt
+
 Step 4 — Start the server:
-bash
-uvicorn main:app --reload --port 8000
+  uvicorn main:app --reload --port 8000
+
 Step 5 — Test it works, open your browser and go to:
-http://localhost:8000/
+  http://localhost:8000/
 
-"SQL Assistant API is live ✓"
+  You should see:
+  "SQL Assistant API is live"
 
 
-The data flow is now:
-You type question
-      ↓
-sql-assistant.html  →  POST localhost:8000/query
-                              ↓
-                         main.py (FastAPI)
-                              ↓
-                    reads your DB schema
-                              ↓
-                    sends to Ollama AI
-                              ↓
-                    runs SQL on your real DB
-                              ↓
-                    returns rows to frontend
-                              ↓
-You see results in the table
+────────────────────────────────────────────────────────────────
+ PART 2 — HOW IT WORKS
+────────────────────────────────────────────────────────────────
 
+The data flow is:
+
+  You type question
+        ↓
+  sql-assistant.html  →  POST localhost:8000/query
+                                ↓
+                           main.py (FastAPI)
+                                ↓
+                      reads your DB schema
+                                ↓
+                      sends to AI model
+                                ↓
+                      runs SQL on your real DB
+                                ↓
+                      returns rows to frontend
+                                ↓
+  You see results in the table
+
+
+────────────────────────────────────────────────────────────────
+ PART 3 — RUNNING FRONTEND AND BACKEND
+────────────────────────────────────────────────────────────────
 
 Step 1 — Start the backend
-Open terminal, go to your backend folder, run:
-uvicorn main:app --reload --port 8000
-Leave this terminal open. Don't close it.
+  Open terminal, go to your backend folder, run:
+  uvicorn main:app --reload --port 8000
+  Leave this terminal open. Do not close it.
 
 Step 2 — Open the frontend
-Just double-click sql-assistant.html in your file explorer.
-It opens in Chrome like a normal webpage.
+  Just double-click sql-assistant.html in your file explorer.
+  It opens in Chrome like a normal webpage.
 
-That's it. Both are now running.
-Terminal          →   backend running at localhost:8000
-Chrome tab        →   your frontend (the HTML file)
+That is it. Both are now running.
+  Terminal    →  backend running at localhost:8000
+  Chrome tab  →  your frontend (the HTML file)
+
+
+────────────────────────────────────────────────────────────────
+ PART 4 — MICROSOFT SQL SERVER (MSSQL) CONNECTION
+────────────────────────────────────────────────────────────────
 
 Step 1 — Enable TCP/IP in SQL Server
 
-Press Windows key → search "SQL Server Configuration Manager" → open it
-On the left click SQL Server Network Configuration
-Click Protocols for MSSQLSERVER (or SQLEXPRESS)
-Right-click TCP/IP → click Enable
-Click OK
-
+  Press Windows key → search "SQL Server Configuration Manager" → open it
+  On the left click SQL Server Network Configuration
+  Click Protocols for SQLEXPRESS
+  Right-click TCP/IP → click Enable
+  Click OK
 
 Step 2 — Set port to 1433
 
-Right-click TCP/IP again → click Properties
-Click the IP Addresses tab
-Scroll down to IPAll section
-Set TCP Port to 1433
-Clear TCP Dynamic Ports (delete anything in that box)
-Click OK
-
+  Right-click TCP/IP again → click Properties
+  Click the IP Addresses tab
+  Scroll down to IPAll section
+  Set TCP Port to 1433
+  Clear TCP Dynamic Ports (delete anything in that box)
+  Click OK
 
 Step 3 — Restart SQL Server
 
-On the left click SQL Server Services
-Right-click SQL Server (MSSQLSERVER) or SQL Server (SQLEXPRESS)
-Click Restart
-
+  On the left click SQL Server Services
+  Right-click SQL Server (SQLEXPRESS)
+  Click Restart
 
 Step 4 — Allow port 1433 in Windows Firewall
 
-Press Windows key → search "Windows Defender Firewall"
-Click Advanced Settings
-Click Inbound Rules → New Rule
-Select Port → Next
-Select TCP → type 1433 → Next
-Select Allow the connection → Next
-Check all 3 boxes → Next
-Name it SQL Server 1433 → Finish
+  Press Windows key → search "Windows Defender Firewall"
+  Click Advanced Settings
+  Click Inbound Rules → New Rule
+  Select Port → Next
+  Select TCP → type 1433 → Next
+  Select Allow the connection → Next
+  Check all 3 boxes → Next
+  Name it SQL Server 1433 → Finish
 
-SELECT @@SERVERNAME
+Step 5 — Find your exact server name
 
-Database Type  →  Microsoft SQL Server
-Host           →  SELECT @@SERVERNAME   ← your exact name
-Port           →  1433
-Username       →  mylogin
-Password       →  your password
-Database Name  →  myDatabase
+  Open SSMS → connect → open New Query → run:
+  SELECT @@SERVERNAME
 
-Step 1 — Use the API docs page
-Open your browser and go to:
-http://localhost:8000/docs
+  Copy the result — this is your Host value.
+  Example result: CAPTAIN-PC\SQLEXPRESS
 
-Step 2 — Test the schema endpoint
+Step 6 — Fill in frontend
 
-Click POST /schema
-Click Try it out
-Paste this (use your exact details):
+  Database Type  →  Microsoft SQL Server
+  Host           →  CAPTAIN-PC\SQLEXPRESS   (your exact result)
+  Port           →  1433
+  Username       →  your SQL Server username
+  Password       →  your password
+  Database Name  →  your database name
 
-json{
-  "db_type": "mssql",
-  "host": "<SELECT @@SERVERNAME>",
-  "port": 1433,
-  "username": "<usenmae>",
-  "password": "<your password>",
-  "database": "<database name>"
-}
+Step 7 — Verify connection using API docs
 
-Click Execute
+  Open your browser and go to:
+  http://localhost:8000/docs
 
+  Click POST /schema
+  Click Try it out
+  Paste this (use your exact details):
 
-If it is really connected you will see your actual tables:
-json{
-  "tables": {
-    "table1": { "columns": [...] },
-    "table2":    { "columns": [...] },
-    "table3":  { "columns": [...] }
+  {
+    "db_type": "mssql",
+    "host": "CAPTAIN-PC\\SQLEXPRESS",
+    "port": 1433,
+    "username": "your_username",
+    "password": "your_password",
+    "database": "your_database"
   }
-}
-If database is empty you will see:
-json{
-  "tables": {}
-}
-This still means connection works ✓ — just no tables yet.
-If connection failed you will see:
-json{
-  "detail": "MSSQL Error: ..."
-}
+
+  Click Execute
+
+  If connected you will see your tables:
+  {
+    "tables": {
+      "table1": { "columns": [...] },
+      "table2": { "columns": [...] }
+    }
+  }
+
+  If empty database:
+  {
+    "tables": {}
+  }
+  This still means connection works — just no tables yet.
+
+  If connection failed:
+  {
+    "detail": "MSSQL Error: ..."
+  }
+
+
+────────────────────────────────────────────────────────────────
+ PART 5 — SNOWFLAKE CONNECTION
+────────────────────────────────────────────────────────────────
+
+Step 1 — Login to Snowflake
+
+  Go to: https://app.snowflake.com
+  Login with your account.
+
+Step 2 — Find your account identifier (Host)
+
+  In Snowflake open a worksheet and run:
+  SELECT CURRENT_ACCOUNT();
+
+  Example result: QX87331
+  Also run:
+  SELECT CURRENT_REGION();
+
+  Example result: AWS_AP_SOUTH_1
+
+  Your Host = account + region combined:
+  Example: QX87331.ap-south-1.aws
+
+  Region conversion table:
+    AWS_AP_SOUTH_1    →  ap-south-1.aws
+    AWS_US_EAST_1     →  us-east-1.aws
+    AWS_EU_WEST_1     →  eu-west-1.aws
+    AZURE_EASTUS2     →  east-us-2.azure
+    GCP_US_CENTRAL1   →  us-central1.gcp
+
+Step 3 — Find your username
+
+  Run in Snowflake worksheet:
+  SELECT CURRENT_USER();
+
+  Example result: psychologicalfact06
+  This is your Username.
+
+Step 4 — Set a password for your account
+
+  Run in Snowflake worksheet:
+  USE ROLE ACCOUNTADMIN;
+  ALTER USER your_username SET PASSWORD = 'YourNewPass@123';
+
+  Or create a dedicated app user:
+  USE ROLE ACCOUNTADMIN;
+  CREATE USER sqlapp
+      PASSWORD = 'SqlApp@123'
+      DEFAULT_ROLE = ACCOUNTADMIN
+      DEFAULT_WAREHOUSE = COMPUTE_WH
+      MUST_CHANGE_PASSWORD = FALSE;
+  GRANT ROLE ACCOUNTADMIN TO USER sqlapp;
+
+Step 5 — Find your warehouse name
+
+  Run in Snowflake worksheet:
+  SHOW WAREHOUSES;
+
+  Copy the name from the results.
+  Default is usually: COMPUTE_WH
+
+  Open database.py and find:
+  warehouse="COMPUTE_WH"
+  Replace COMPUTE_WH with your actual warehouse name if different.
+
+Step 6 — Create a database with sample data (optional)
+
+  Run in Snowflake worksheet:
+
+  CREATE DATABASE IF NOT EXISTS SHOP_DB;
+  USE DATABASE SHOP_DB;
+  USE SCHEMA PUBLIC;
+
+  CREATE TABLE customers (
+      customer_id  INT PRIMARY KEY,
+      name         VARCHAR(100),
+      email        VARCHAR(100),
+      city         VARCHAR(50)
+  );
+
+  CREATE TABLE products (
+      product_id   INT PRIMARY KEY,
+      product_name VARCHAR(100),
+      category     VARCHAR(50),
+      price        DECIMAL(10,2)
+  );
+
+  CREATE TABLE orders (
+      order_id     INT PRIMARY KEY,
+      customer_id  INT,
+      order_date   DATE,
+      total_amount DECIMAL(10,2),
+      status       VARCHAR(20)
+  );
+
+  INSERT INTO customers VALUES
+  (1, 'Ali Hassan',   'ali@email.com',    'Karachi'),
+  (2, 'Sara Ahmed',   'sara@email.com',   'Lahore'),
+  (3, 'Omar Khan',    'omar@email.com',   'Islamabad');
+
+  INSERT INTO products VALUES
+  (1, 'Laptop',     'Electronics', 85000.00),
+  (2, 'Phone',      'Electronics', 45000.00),
+  (3, 'Headphones', 'Electronics',  5000.00);
+
+  INSERT INTO orders VALUES
+  (1, 1, '2024-01-15', 90000.00, 'Delivered'),
+  (2, 2, '2024-01-20', 45000.00, 'Delivered'),
+  (3, 3, '2024-02-01',  8500.00, 'Shipped');
+
+Step 7 — Install Snowflake driver
+
+  Run in your terminal:
+  pip install snowflake-connector-python
+
+Step 8 — Fill in frontend
+
+  Database Type  →  Snowflake
+  Host           →  QX87331.ap-south-1.aws   (your account.region)
+  Port           →  443
+  Username       →  psychologicalfact06       (your username)
+  Password       →  your password
+  Database Name  →  SHOP_DB
+
+Step 9 — Verify using API docs
+
+  Open your browser and go to:
+  http://localhost:8000/docs
+
+  Click POST /schema
+  Click Try it out
+  Paste this:
+
+  {
+    "db_type": "snowflake",
+    "host": "QX87331.ap-south-1.aws",
+    "port": 443,
+    "username": "psychologicalfact06",
+    "password": "your_password",
+    "database": "SHOP_DB"
+  }
+
+  Click Execute
+
+  If connected you will see:
+  {
+    "tables": {
+      "CUSTOMERS": { "columns": [...] },
+      "PRODUCTS":  { "columns": [...] },
+      "ORDERS":    { "columns": [...] }
+    }
+  }
+
+  If connection failed you will see:
+  {
+    "detail": "Snowflake Error: ..."
+  }
+
+
+────────────────────────────────────────────────────────────────
+ PART 6 — COMMON ERRORS AND FIXES
+────────────────────────────────────────────────────────────────
+
+MSSQL Errors:
+  "TCP Provider: No connection could be made"
+  → TCP/IP not enabled. Follow Part 4 Step 1-2.
+
+  "Login failed for user"
+  → Wrong username or password. Check SSMS login.
+
+  "Cannot find server"
+  → Wrong host name. Run SELECT @@SERVERNAME in SSMS.
+
+Snowflake Errors:
+  "Failed to connect to DB"
+  → Wrong account identifier. Run SELECT CURRENT_ACCOUNT() and CURRENT_REGION().
+
+  "Incorrect username or password"
+  → Run ALTER USER to reset password. See Part 5 Step 4.
+
+  "Actual statement count X did not match desired count 1"
+  → AI generated multiple SQL statements. Ask one question at a time.
+
+  "Warehouse not found"
+  → Run SHOW WAREHOUSES and update database.py with correct name.
+
+General Errors:
+  "Cannot reach backend"
+  → uvicorn is not running. Run: uvicorn main:app --reload --port 8000
+
+  "OpenRouter rate limit"
+  → Wait 1 minute and try again.
+
+  "Module not found"
+  → Run: pip install -r requirements.txt
